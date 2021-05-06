@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from os import listdir
+from os import listdir, path
 from PIL import Image
 
 # Turns positive training examples into a large numpy array
@@ -53,5 +53,6 @@ def convert_to_numpy():
     np.save("training_images.npy", data)
 
 if __name__ == '__main__':
-#    convert_to_numpy()
+    if(not path.exists('training_images.npy')):
+        convert_to_numpy()
     pass
