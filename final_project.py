@@ -13,6 +13,7 @@ from PIL import Image
 #
 # Data comes from the train.zip file
 # Extract contents of train.zip to a data/train
+# Gets path from data/train_relationships.csv
 def convert_to_numpy():
     # read csv for training samples and print dataframe
     df = pd.read_csv('data/train_relationships.csv')
