@@ -2,17 +2,31 @@ import numpy as np
 import pandas as pd
 from os import listdir, path
 from PIL import Image, ImageOps
+import sklearn
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression as lr
+from sklearn.utils.testing import ignore_warnings
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
+from tensorflow import keras
 
-from sklearn.utils._testing import ignore_warnings
-
+def get_embedding(model, face_pixels):
+	# scale pixel values
+	face_pixels = face_pixels.astype('float32')
+	# standardize pixel values across channels (global)
+	mean, std = face_pixels.mean(), face_pixels.std()
+	face_pixels = (face_pixels - mean) / std
+	# transform face into one sample
+	samples = np.expand_dims(face_pixels, axis=0)
+	# make prediction to get embedding
+	yhat = model.predict(samples)
+	return yhat[0]
 
 # creates positive samples from the data set
-def save_positive_samples(df, i, type):
+def save_positive_samples(df, i, type, model):
     trainData = []
+    counter = 0
+    c=0
 
     for index, row in df.iterrows():
 
@@ -28,16 +42,23 @@ def save_positive_samples(df, i, type):
                 for file2 in imgs_p2:
                     img2 = Image.open(row['p2'] + '/' + file2)
 
-                    # sample = []
-
-                    # resize image and turn into an np array
-                    # sample.append(np.asarray(img1.resize((128, 128), Image.ANTIALIAS)))
-                    # sample.append(np.asarray(img2.resize((128, 128), Image.ANTIALIAS)))
+                    # print(len(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS)))) )
 
                     trainData.append(
-                        np.concatenate(
-                            (np.asarray(ImageOps.grayscale(img1.resize((128, 128), Image.ANTIALIAS))),
-                             np.asarray(ImageOps.grayscale(img2.resize((128, 128), Image.ANTIALIAS))))))
+                        np.concatenate((get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))),
+                        get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS)))
+                    )))
+                    counter +=1
+                    c+=1
+
+                    if(counter >= 1000):
+                        print('pos {}: {}'.format(type, c))
+                        counter = 0
+
+                    # trainData.append(
+                    #     np.concatenate(
+                    #         (np.asarray(ImageOps.grayscale(img1.resize((128, 128), Image.ANTIALIAS))),
+                    #          np.asarray(ImageOps.grayscale(img2.resize((128, 128), Image.ANTIALIAS))))))
 
         except FileNotFoundError:
             pass
@@ -48,10 +69,13 @@ def save_positive_samples(df, i, type):
 
 
 # creates negative samples from the data set
-def save_negative_samples(df, i, type):
+def save_negative_samples(df, i, type, model):
     trainData = []
     person1 = []
     person2 = []
+
+    counter = 0
+    c=0
 
     for index, row in df.iterrows():
 
@@ -67,9 +91,20 @@ def save_negative_samples(df, i, type):
                 for file2 in imgs_p2:
                     img2 = Image.open(row['p2'] + '/' + file2)
 
+                    person1.append(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))))
+                    person2.append(get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS))))
+
                     # resize image and turn into an np array
-                    person1.append(np.asarray(ImageOps.grayscale(img1.resize((128, 128), Image.ANTIALIAS))))
-                    person2.append(np.asarray(ImageOps.grayscale(img2.resize((128, 128), Image.ANTIALIAS))))
+                    # person1.append(np.asarray(ImageOps.grayscale(img1.resize((128, 128), Image.ANTIALIAS))))
+                    # person2.append(np.asarray(ImageOps.grayscale(img2.resize((128, 128), Image.ANTIALIAS))))
+
+                    counter +=1
+                    c+=1
+
+                    if(counter >= 1000):
+                        print('neg {}: {}'.format(type, c))
+                        counter = 0
+
         except FileNotFoundError:
             pass
 
@@ -100,6 +135,7 @@ def save_negative_samples(df, i, type):
 def convert_to_numpy():
     # read csv for training samples and print dataframe
     df = pd.read_csv('data/train_relationships.csv')
+    model = keras.models.load_model('facenet_keras.h5')
     # print(df)
 
     # iterate over everything in the csv
@@ -114,22 +150,29 @@ def convert_to_numpy():
     p = .05
     for i in range(1):
         b = df.sample(frac=p)
-        save_positive_samples(b, i, "training")
+        save_positive_samples(b, i, "training", model)
+
+    print('training pos done')
 
     for i in range(1):
         b = df.sample(frac=p)
-        save_negative_samples(b, i, 'training')
+        save_negative_samples(b, i, 'training', model)
+
+    print('training neg done')
 
     for i in range(1):
         b = df.sample(frac=p)
-        save_positive_samples(b, i, "testing")
+        save_positive_samples(b, i, "testing", model)
+
+    print('testing pos done')
 
     for i in range(1):
         b = df.sample(frac=p)
-        save_negative_samples(b, i, 'testing')
+        save_negative_samples(b, i, 'testing', model)
+
+    print('testing neg done')
 
 
-@ignore_warnings(category=ConvergenceWarning)
 def main():
     if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
@@ -138,12 +181,18 @@ def main():
         # (# samples, 256, 128, 3)
     train_pos = np.load('training_images_pos0.npy')
     train_neg = np.load('training_images_neg0.npy')
+    test_pos = np.load('testing_images_pos0.npy')
+    test_neg = np.load('testing_images_neg0.npy')
     print(train_pos.shape)
     print(train_neg.shape)
+    print(test_pos.shape)
+    print(test_neg.shape)
 
     # flatten images
-    train_pos = preprocessing.minmax_scale(train_pos.reshape((train_pos.shape[0], 32768)))
-    train_neg = preprocessing.minmax_scale(train_neg.reshape((train_neg.shape[0], 32768)))
+    train_pos = preprocessing.minmax_scale(train_pos)
+    train_neg = preprocessing.minmax_scale(train_neg)
+    test_pos = preprocessing.minmax_scale(test_pos)
+    test_neg = preprocessing.minmax_scale(test_neg)
 
     pos_label = np.ones(train_pos.shape[0])
     neg_label = np.zeros(train_neg.shape[0])
@@ -155,17 +204,14 @@ def main():
 
     trainX = trainX[idxs]
     trainY = trainY[idxs]
+    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]))
+    
+    trainX
 
-    # train_pos = np.concatenate((train_pos, pos_label), axis=1)
-    # train_neg = np.concatenate((train_neg, neg_label), axis=1)
+    # a = trainX[:, :trainX.shape[1]//2] - trainX[:, trainX.shape[1]//2:]
+    # print(a.shape)
 
     clf = lr().fit(trainX, trainY)
-
-    test_pos = np.load('testing_images_pos0.npy')
-    test_neg = np.load('testing_images_neg0.npy')
-
-    test_pos = preprocessing.minmax_scale(test_pos.reshape((test_pos.shape[0], 32768)))
-    test_neg = preprocessing.minmax_scale(test_neg.reshape((test_neg.shape[0], 32768)))
 
     pos_label_test = np.ones(test_pos.shape[0])
     neg_label_test = np.zeros(test_neg.shape[0])
@@ -179,6 +225,8 @@ def main():
     testY = testY[idxs]
 
     print(clf.score(testX, testY))
+
+    print(sklearn.metrics.roc_auc_score(testY, clf.predict_proba(testX)[:, 1]))
 
     # plt.imshow(train_pos[0])
     # plt.show()
