@@ -1,3 +1,4 @@
+from operator import mod
 import numpy as np
 import pandas as pd
 from os import listdir, path
@@ -8,7 +9,11 @@ from sklearn.linear_model import LogisticRegression as lr
 from sklearn.utils.testing import ignore_warnings
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.layers import Conv2D, MaxPooling2D
+from tensorflow.keras.models import Sequential
 
 def get_embedding(model, face_pixels):
 	# scale pixel values
@@ -110,8 +115,6 @@ def save_negative_samples(df, i, type, model):
 
     np.random.shuffle(person2)
 
-    # trainData.append(person1)
-    # trainData.append(person2)
     trainData = np.concatenate(
         (person1, person2),
         axis=1
@@ -148,13 +151,13 @@ def convert_to_numpy():
 
     # random sample of 5% of the data set
     p = .05
-    for i in range(1):
+    for i in range(3):
         b = df.sample(frac=p)
         save_positive_samples(b, i, "training", model)
 
     print('training pos done')
 
-    for i in range(1):
+    for i in range(3):
         b = df.sample(frac=p)
         save_negative_samples(b, i, 'training', model)
 
@@ -173,7 +176,63 @@ def convert_to_numpy():
     print('testing neg done')
 
 
-def main():
+def shallow():
+    if (not path.exists('training_images_pos0.npy') and
+            not path.exists('training_image_neg0.npy')):
+        convert_to_numpy()
+
+        # (# samples, 256, 128, 3)
+    train_pos = np.load('training_images_pos0.npy')
+    train_neg = np.load('training_images_neg0.npy')
+    test_pos = np.load('testing_images_pos0.npy')
+    test_neg = np.load('testing_images_neg0.npy')
+    print(train_pos.shape)
+    print(train_neg.shape)
+    print(test_pos.shape)
+    print(test_neg.shape)
+
+    train_pos = preprocessing.minmax_scale(train_pos)
+    train_neg = preprocessing.minmax_scale(train_neg)
+    test_pos = preprocessing.minmax_scale(test_pos)
+    test_neg = preprocessing.minmax_scale(test_neg)
+
+    pos_label = np.ones(train_pos.shape[0])
+    neg_label = np.zeros(train_neg.shape[0])
+
+    trainX = np.concatenate((train_pos, train_neg))
+    trainY = np.concatenate((pos_label, neg_label))
+
+    # Flip images & add flipped version
+    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]), axis=1)
+    trainX = np.concatenate((trainX, trainXFlip))
+    trainY = np.concatenate((trainY, trainY))
+
+    idxs = np.random.permutation(trainX.shape[0])
+
+    trainX = trainX[idxs]
+    trainY = trainY[idxs]
+    
+    clf = lr().fit(trainX, trainY)
+
+    pos_label_test = np.ones(test_pos.shape[0])
+    neg_label_test = np.zeros(test_neg.shape[0])
+
+    testX = np.concatenate((test_pos, test_neg))
+    testY = np.concatenate((pos_label_test, neg_label_test))
+
+    idxs = np.random.permutation(testX.shape[0])
+
+    testX = testX[idxs]
+    testY = testY[idxs]
+
+    print('Accuracy: ', clf.score(testX, testY))
+
+    print('ROC: ', sklearn.metrics.roc_auc_score(testY, clf.predict_proba(testX)[:, 1]))
+
+    # plt.imshow(train_pos[0])
+    # plt.show()
+
+def deep():
     if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
         convert_to_numpy()
@@ -200,18 +259,16 @@ def main():
     trainX = np.concatenate((train_pos, train_neg))
     trainY = np.concatenate((pos_label, neg_label))
 
+    # Flip images & add flipped version
+    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]), axis=1)
+    trainX = np.concatenate((trainX, trainXFlip))
+    trainY = np.concatenate((trainY, trainY))
+
     idxs = np.random.permutation(trainX.shape[0])
 
     trainX = trainX[idxs]
     trainY = trainY[idxs]
-    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]))
-    
-    trainX
-
-    # a = trainX[:, :trainX.shape[1]//2] - trainX[:, trainX.shape[1]//2:]
-    # print(a.shape)
-
-    clf = lr().fit(trainX, trainY)
+    trainY = tf.one_hot(trainY, 2)
 
     pos_label_test = np.ones(test_pos.shape[0])
     neg_label_test = np.zeros(test_neg.shape[0])
@@ -219,18 +276,44 @@ def main():
     testX = np.concatenate((test_pos, test_neg))
     testY = np.concatenate((pos_label_test, neg_label_test))
 
+    testXFlip = np.concatenate((testX[:, 128:], testX[:, :128]), axis=1)
+    testX = np.concatenate((testX, testXFlip))
+    testY = np.concatenate((testY, testY))
+
     idxs = np.random.permutation(testX.shape[0])
 
     testX = testX[idxs]
     testY = testY[idxs]
+    testY = tf.one_hot(testY, 2)
 
-    print(clf.score(testX, testY))
+    model = Sequential()
+    # model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1),
+    #                 activation='relu',
+    #                 input_shape=()))
+    # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+    # model.add(Conv2D(64, (5, 5), activation='relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Flatten())
+    model.add(Dense(100, activation='relu', input_shape=testX.shape))
+    model.add(Dense(100, activation = 'relu'))
+    model.add(Dense(2, activation='softmax'))
 
-    print(sklearn.metrics.roc_auc_score(testY, clf.predict_proba(testX)[:, 1]))
+    model.compile(loss=keras.losses.categorical_crossentropy,
+                optimizer=keras.optimizers.Adam(),
+                metrics=['accuracy', 'AUC'])
 
-    # plt.imshow(train_pos[0])
-    # plt.show()
+    # train model
+    model.fit(trainX, trainY,
+    batch_size=128,
+    epochs=10,
+    verbose=1,
+    validation_data=(testX, testY))
 
+    score = model.evaluate(testX, testY, verbose=0, return_dict=True)
+    print('Test loss:', score['loss'])
+    print('Test accuracy:', score['accuracy'])
+    print('Test AUC:', score['auc'])
 
 if __name__ == '__main__':
-    main()
+    # shallow()
+    deep()
