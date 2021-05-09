@@ -1,14 +1,14 @@
+from operator import mod
 import numpy as np
 import pandas as pd
 from os import listdir, path
 from PIL import Image, ImageOps
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression as lr
+from sklearn.metrics import roc_auc_score
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
-
-from sklearn.utils._testing import ignore_warnings
-
+import pickle
 
 # creates positive samples from the data set
 def save_positive_samples(df, i, type):
@@ -129,7 +129,6 @@ def convert_to_numpy():
         save_negative_samples(b, i, 'testing')
 
 
-@ignore_warnings(category=ConvergenceWarning)
 def main():
     if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
@@ -158,11 +157,14 @@ def main():
 
     # train_pos = np.concatenate((train_pos, pos_label), axis=1)
     # train_neg = np.concatenate((train_neg, neg_label), axis=1)
-
-    clf = lr().fit(trainX, trainY)
+    model = lr()
+    clf = model.fit(trainX, trainY)
+    pickle.dump(model, open('model.sav', 'wb'))
 
     test_pos = np.load('testing_images_pos0.npy')
     test_neg = np.load('testing_images_neg0.npy')
+    print(test_pos.shape)
+    print(test_neg.shape)
 
     test_pos = preprocessing.minmax_scale(test_pos.reshape((test_pos.shape[0], 32768)))
     test_neg = preprocessing.minmax_scale(test_neg.reshape((test_neg.shape[0], 32768)))
@@ -179,10 +181,35 @@ def main():
     testY = testY[idxs]
 
     print(clf.score(testX, testY))
+    roc_auc_score(testY, clf.predict_proba(testX)[:, 1])
+
 
     # plt.imshow(train_pos[0])
     # plt.show()
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    model = pickle.load(open('model.sav', 'rb'))
+    
+    test_pos = np.load('testing_images_pos0.npy')
+    test_neg = np.load('testing_images_neg0.npy')
+    print(test_pos.shape)
+    print(test_neg.shape)
+
+    test_pos = preprocessing.minmax_scale(test_pos.reshape((test_pos.shape[0], 32768)))
+    test_neg = preprocessing.minmax_scale(test_neg.reshape((test_neg.shape[0], 32768)))
+
+    pos_label_test = np.ones(test_pos.shape[0])
+    neg_label_test = np.zeros(test_neg.shape[0])
+
+    testX = np.concatenate((test_pos, test_neg))
+    testY = np.concatenate((pos_label_test, neg_label_test))
+
+    idxs = np.random.permutation(testX.shape[0])
+
+    testX = testX[idxs]
+    testY = testY[idxs]
+
+    print(model.score(testX, testY))
+    print(roc_auc_score(testY, model.predict_proba(testX)[:, 1]))
