@@ -175,56 +175,105 @@ def convert_to_numpy():
 
     print('testing neg done')
 
+# loads all the training data in all the files
+def load_training_data():
+    trainX_all = np.zeros((1,256))
+    trainY_all = np.array([])
+    counter = 0
+
+    for dir in listdir('.'):
+        
+        if('training_images_pos' in dir):
+            train_pos = np.load('training_images_pos{}.npy'.format(counter))
+            train_neg = np.load('training_images_neg{}.npy'.format(counter))
+
+            # train_pos = preprocessing.minmax_scale(train_pos)
+            # train_neg = preprocessing.minmax_scale(train_neg)
+
+            pos_label = np.ones(train_pos.shape[0])
+            neg_label = np.zeros(train_neg.shape[0])
+
+            trainX = np.concatenate((train_pos, train_neg))
+            trainY = np.concatenate((pos_label, neg_label))
+
+            # Flip images & add flipped version
+            trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]), axis=1)
+            trainX = np.concatenate((trainX, trainXFlip))
+            trainY = np.concatenate((trainY, trainY))
+
+            idxs = np.random.permutation(trainX.shape[0])
+
+            trainX = trainX[idxs]
+            trainY = trainY[idxs]
+
+            # trainX_all.append(trainX)
+            # trainY_all.append(trainY)
+            print(trainX.shape)
+            print(trainY.shape)
+            trainX_all = np.append(trainX_all, trainX, axis=0)
+            trainY_all = np.append(trainY_all, trainY)
+
+            counter += 1
+
+    trainX_all = trainX_all[1:]
+    print(trainX_all.shape)
+    print(trainY_all.shape)
+    return trainX_all, trainY_all
+
+def load_testing_data():
+    testX_all = np.zeros((1,256))
+    testY_all = np.array([])
+    counter = 0
+
+    for dir in listdir('.'):
+        
+        if('testing_images_pos' in dir):
+            test_pos = np.load('testing_images_pos{}.npy'.format(counter))
+            test_neg = np.load('testing_images_neg{}.npy'.format(counter))
+            
+            # test_pos = preprocessing.minmax_scale(test_pos)
+            # test_neg = preprocessing.minmax_scale(test_neg)
+            
+            pos_label_test = np.ones(test_pos.shape[0])
+            neg_label_test = np.zeros(test_neg.shape[0])
+
+            testX = np.concatenate((test_pos, test_neg))
+            testY = np.concatenate((pos_label_test, neg_label_test))
+
+            idxs = np.random.permutation(testX.shape[0])
+
+            testX = testX[idxs]
+            testY = testY[idxs]
+
+            # trainX_all.append(trainX)
+            # trainY_all.append(trainY)
+            print(testX.shape)
+            print(testY.shape)
+            testX_all = np.append(testX_all, testX, axis=0)
+            testY_all = np.append(testY_all, testY)
+
+            counter += 1
+
+    testX_all = testX_all[1:]
+    print(testX_all.shape)
+    print(testY_all.shape)
+    return testX_all, testY_all
 
 def shallow():
     if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
         convert_to_numpy()
 
-        # (# samples, 256, 128, 3)
-    train_pos = np.load('training_images_pos0.npy')
-    train_neg = np.load('training_images_neg0.npy')
-    test_pos = np.load('testing_images_pos0.npy')
-    test_neg = np.load('testing_images_neg0.npy')
-    print(train_pos.shape)
-    print(train_neg.shape)
-    print(test_pos.shape)
-    print(test_neg.shape)
+    # (# samples, 256)
+    trainX, trainY = load_training_data()
+    testX, testY = load_testing_data()
 
-    train_pos = preprocessing.minmax_scale(train_pos)
-    train_neg = preprocessing.minmax_scale(train_neg)
-    test_pos = preprocessing.minmax_scale(test_pos)
-    test_neg = preprocessing.minmax_scale(test_neg)
+    trainX = preprocessing.minmax_scale(trainX)
+    testX = preprocessing.minmax_scale(testX)
 
-    pos_label = np.ones(train_pos.shape[0])
-    neg_label = np.zeros(train_neg.shape[0])
-
-    trainX = np.concatenate((train_pos, train_neg))
-    trainY = np.concatenate((pos_label, neg_label))
-
-    # Flip images & add flipped version
-    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]), axis=1)
-    trainX = np.concatenate((trainX, trainXFlip))
-    trainY = np.concatenate((trainY, trainY))
-
-    idxs = np.random.permutation(trainX.shape[0])
-
-    trainX = trainX[idxs]
-    trainY = trainY[idxs]
-    
     clf = lr().fit(trainX, trainY)
-
-    pos_label_test = np.ones(test_pos.shape[0])
-    neg_label_test = np.zeros(test_neg.shape[0])
-
-    testX = np.concatenate((test_pos, test_neg))
-    testY = np.concatenate((pos_label_test, neg_label_test))
-
-    idxs = np.random.permutation(testX.shape[0])
-
-    testX = testX[idxs]
-    testY = testY[idxs]
-
+    
+    print('CE Loss: ', sklearn.metrics.log_loss(testY, clf.predict_proba(testX), eps=1e-15))
     print('Accuracy: ', clf.score(testX, testY))
 
     print('ROC: ', sklearn.metrics.roc_auc_score(testY, clf.predict_proba(testX)[:, 1]))
@@ -237,53 +286,11 @@ def deep():
             not path.exists('training_image_neg0.npy')):
         convert_to_numpy()
 
-        # (# samples, 256, 128, 3)
-    train_pos = np.load('training_images_pos0.npy')
-    train_neg = np.load('training_images_neg0.npy')
-    test_pos = np.load('testing_images_pos0.npy')
-    test_neg = np.load('testing_images_neg0.npy')
-    print(train_pos.shape)
-    print(train_neg.shape)
-    print(test_pos.shape)
-    print(test_neg.shape)
+    # (# samples, 256)
+    trainX, trainY = load_training_data()
+    testX, testY = load_testing_data()
 
-    # flatten images
-    train_pos = preprocessing.minmax_scale(train_pos)
-    train_neg = preprocessing.minmax_scale(train_neg)
-    test_pos = preprocessing.minmax_scale(test_pos)
-    test_neg = preprocessing.minmax_scale(test_neg)
-
-    pos_label = np.ones(train_pos.shape[0])
-    neg_label = np.zeros(train_neg.shape[0])
-
-    trainX = np.concatenate((train_pos, train_neg))
-    trainY = np.concatenate((pos_label, neg_label))
-
-    # Flip images & add flipped version
-    trainXFlip = np.concatenate((trainX[:, 128:], trainX[:, :128]), axis=1)
-    trainX = np.concatenate((trainX, trainXFlip))
-    trainY = np.concatenate((trainY, trainY))
-
-    idxs = np.random.permutation(trainX.shape[0])
-
-    trainX = trainX[idxs]
-    trainY = trainY[idxs]
     trainY = tf.one_hot(trainY, 2)
-
-    pos_label_test = np.ones(test_pos.shape[0])
-    neg_label_test = np.zeros(test_neg.shape[0])
-
-    testX = np.concatenate((test_pos, test_neg))
-    testY = np.concatenate((pos_label_test, neg_label_test))
-
-    testXFlip = np.concatenate((testX[:, 128:], testX[:, :128]), axis=1)
-    testX = np.concatenate((testX, testXFlip))
-    testY = np.concatenate((testY, testY))
-
-    idxs = np.random.permutation(testX.shape[0])
-
-    testX = testX[idxs]
-    testY = testY[idxs]
     testY = tf.one_hot(testY, 2)
 
     model = Sequential()
@@ -294,8 +301,8 @@ def deep():
     # model.add(Conv2D(64, (5, 5), activation='relu'))
     # model.add(MaxPooling2D(pool_size=(2, 2)))
     # model.add(Flatten())
-    model.add(Dense(100, activation='relu', input_shape=testX.shape))
-    model.add(Dense(100, activation = 'relu'))
+    model.add(Dense(100, activation='relu', input_shape=trainX.shape))
+    model.add(Dense(50, activation = 'relu'))
     model.add(Dense(2, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
@@ -315,5 +322,5 @@ def deep():
     print('Test AUC:', score['auc'])
 
 if __name__ == '__main__':
-    # shallow()
-    deep()
+    shallow()
+    # deep()
