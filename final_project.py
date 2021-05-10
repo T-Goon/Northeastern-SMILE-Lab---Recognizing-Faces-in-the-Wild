@@ -47,8 +47,6 @@ def save_positive_samples(df, i, type, model):
                 for file2 in imgs_p2:
                     img2 = Image.open(row['p2'] + '/' + file2)
 
-                    # print(len(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS)))) )
-
                     trainData.append(
                         np.concatenate((get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))),
                         get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS)))
@@ -75,6 +73,8 @@ def save_positive_samples(df, i, type, model):
 
 # creates negative samples from the data set
 def save_negative_samples(df, i, type, model):
+    train_pos = np.load('training_images_pos{}.npy'.format(i))
+
     trainData = []
     person1 = []
     person2 = []
@@ -82,47 +82,48 @@ def save_negative_samples(df, i, type, model):
     counter = 0
     c=0
 
-    for index, row in df.iterrows():
-
+    for index1, row1 in df.iterrows():
         try:
-            # get all the images in the 2 directories
-            imgs_p1 = listdir(row['p1'])
-            imgs_p2 = listdir(row['p2'])
+            imgs_p1 = listdir(row1['p1'])
 
-            # all combinations of the images in either directory
-            for file1 in imgs_p1:
+            for index2, row2 in df.iterrows():
+                
+                # get all the images in the 2 directories
+                
+                imgs_p2 = listdir(row2['p2'])
 
-                img1 = Image.open(row['p1'] + '/' + file1)
-                for file2 in imgs_p2:
-                    img2 = Image.open(row['p2'] + '/' + file2)
+                # all combinations of the images in either directory
+                for file1 in imgs_p1:
 
-                    person1.append(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))))
-                    person2.append(get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS))))
+                    img1 = Image.open(row1['p1'] + '/' + file1)
+                    for file2 in imgs_p2:
+                        img2 = Image.open(row2['p2'] + '/' + file2)
 
-                    # resize image and turn into an np array
-                    # person1.append(np.asarray(ImageOps.grayscale(img1.resize((128, 128), Image.ANTIALIAS))))
-                    # person2.append(np.asarray(ImageOps.grayscale(img2.resize((128, 128), Image.ANTIALIAS))))
+                        # different family ids
+                        if(row1['p1'][11:16] not in row2['p2'][11:16]):
 
-                    counter +=1
-                    c+=1
+                            if(len(person1) >= train_pos.shape[0]):
+                                trainData = np.concatenate(
+                                (person1, person2),
+                                axis=1)
+                                # save all the images in a numpy file
+                                data = np.array(trainData)
+                                np.save("{}_images_neg{}.npy".format(type, i), data)
 
-                    if(counter >= 1000):
-                        print('neg {}: {}'.format(type, c))
-                        counter = 0
+                                return
+
+                            person1.append(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))))
+                            person2.append(get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS))))
+                            counter +=1
+                            c+=1
+
+                            if(counter >= 1000):
+                                print('neg {}: {}'.format(type, c))
+                                counter = 0
 
         except FileNotFoundError:
             pass
-
-    np.random.shuffle(person2)
-
-    trainData = np.concatenate(
-        (person1, person2),
-        axis=1
-    )
-    # save all the images in a numpy file
-    data = np.array(trainData)
-    np.save("{}_images_neg{}.npy".format(type, i), data)
-
+        
 
 # Turns positive training examples into a large numpy array
 # array is saved in training_images.npy
@@ -139,11 +140,6 @@ def convert_to_numpy():
     # read csv for training samples and print dataframe
     df = pd.read_csv('data/train_relationships.csv')
     model = keras.models.load_model('facenet_keras.h5')
-    # print(df)
-
-    # iterate over everything in the csv
-    # for index, row in df.iterrows():
-    #     print(row['p1'], row['p2'])
 
     # set up correct path to images
     df['p1'] = 'data/train/' + df['p1']
@@ -151,13 +147,13 @@ def convert_to_numpy():
 
     # random sample of 5% of the data set
     p = .05
-    for i in range(3):
+    for i in range(1):
         b = df.sample(frac=p)
         save_positive_samples(b, i, "training", model)
 
     print('training pos done')
 
-    for i in range(3):
+    for i in range(1):
         b = df.sample(frac=p)
         save_negative_samples(b, i, 'training', model)
 
@@ -260,7 +256,7 @@ def load_testing_data():
     return testX_all, testY_all
 
 def shallow():
-    if (not path.exists('training_images_pos0.npy') and
+    if (not path.exists('training_images_pos0.npy') or
             not path.exists('training_image_neg0.npy')):
         convert_to_numpy()
 
