@@ -201,11 +201,6 @@ def load_training_data():
             trainX = np.concatenate((trainX, trainXFlip))
             trainY = np.concatenate((trainY, trainY))
 
-            idxs = np.random.permutation(trainX.shape[0])
-
-            trainX = trainX[idxs]
-            trainY = trainY[idxs]
-
             # trainX_all.append(trainX)
             # trainY_all.append(trainY)
             print(trainX.shape)
@@ -218,6 +213,11 @@ def load_training_data():
     trainX_all = trainX_all[1:]
     print(trainX_all.shape)
     print(trainY_all.shape)
+    idxs = np.random.permutation(trainX_all.shape[0])
+
+    trainX_all = trainX_all[idxs]
+    trainX_all = trainX_all[idxs]
+
     return trainX_all, trainY_all
 
 def load_testing_data():
@@ -240,11 +240,6 @@ def load_testing_data():
             testX = np.concatenate((test_pos, test_neg))
             testY = np.concatenate((pos_label_test, neg_label_test))
 
-            idxs = np.random.permutation(testX.shape[0])
-
-            testX = testX[idxs]
-            testY = testY[idxs]
-
             # trainX_all.append(trainX)
             # trainY_all.append(trainY)
             print(testX.shape)
@@ -257,6 +252,11 @@ def load_testing_data():
     testX_all = testX_all[1:]
     print(testX_all.shape)
     print(testY_all.shape)
+    idxs = np.random.permutation(testX_all.shape[0])
+
+    testX_all = testX_all[idxs]
+    testY_all = testY_all[idxs]
+
     return testX_all, testY_all
 
 def shallow():
@@ -301,8 +301,9 @@ def deep():
     # model.add(Conv2D(64, (5, 5), activation='relu'))
     # model.add(MaxPooling2D(pool_size=(2, 2)))
     # model.add(Flatten())
-    model.add(Dense(100, activation='relu', input_shape=trainX.shape))
-    model.add(Dense(50, activation = 'relu'))
+    model.add(Dense(512, activation='relu', input_shape=trainX.shape))
+    model.add(Dense(256, activation = 'relu'))
+    model.add(Dense(128, activation = 'relu'))
     model.add(Dense(2, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
@@ -312,7 +313,7 @@ def deep():
     # train model
     model.fit(trainX, trainY,
     batch_size=128,
-    epochs=10,
+    epochs=5,
     verbose=1,
     validation_data=(testX, testY))
 
@@ -323,4 +324,4 @@ def deep():
 
 if __name__ == '__main__':
     shallow()
-    # deep()
+    deep()
