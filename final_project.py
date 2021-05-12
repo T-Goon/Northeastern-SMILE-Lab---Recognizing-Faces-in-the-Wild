@@ -147,13 +147,13 @@ def convert_to_numpy():
 
     # random sample of 5% of the data set
     p = .05
-    for i in range(1):
+    for i in range(3):
         b = df.sample(frac=p)
         save_positive_samples(b, i, "training", model)
 
     print('training pos done')
 
-    for i in range(1):
+    for i in range(3):
         b = df.sample(frac=p)
         save_negative_samples(b, i, 'training', model)
 
@@ -256,13 +256,17 @@ def load_testing_data():
     return testX_all, testY_all
 
 def shallow():
-    if (not path.exists('training_images_pos0.npy') or
+    if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
+        print('Creating Data')
         convert_to_numpy()
 
     # (# samples, 256)
     trainX, trainY = load_training_data()
     testX, testY = load_testing_data()
+
+    print(trainX.shape)
+    print(testX.shape)
 
     trainX = preprocessing.minmax_scale(trainX)
     testX = preprocessing.minmax_scale(testX)
@@ -280,6 +284,7 @@ def shallow():
 def deep():
     if (not path.exists('training_images_pos0.npy') and
             not path.exists('training_image_neg0.npy')):
+        print('Creating Data')
         convert_to_numpy()
 
     # (# samples, 256)
@@ -290,16 +295,8 @@ def deep():
     testY = tf.one_hot(testY, 2)
 
     model = Sequential()
-    # model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1),
-    #                 activation='relu',
-    #                 input_shape=()))
-    # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    # model.add(Conv2D(64, (5, 5), activation='relu'))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Flatten())
-    model.add(Dense(512, activation='relu', input_shape=trainX.shape))
-    model.add(Dense(256, activation = 'relu'))
-    model.add(Dense(128, activation = 'relu'))
+    model.add(Dense(100, activation='relu', input_shape=trainX.shape))
+    model.add(Dense(50, activation = 'relu'))
     model.add(Dense(2, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
@@ -309,7 +306,7 @@ def deep():
     # train model
     model.fit(trainX, trainY,
     batch_size=128,
-    epochs=5,
+    epochs=10,
     verbose=1,
     validation_data=(testX, testY))
 
@@ -319,5 +316,5 @@ def deep():
     print('Test AUC:', score['auc'])
 
 if __name__ == '__main__':
-    shallow()
+    # shallow()
     deep()
