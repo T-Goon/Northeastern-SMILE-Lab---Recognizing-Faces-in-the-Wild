@@ -236,6 +236,10 @@ def load_testing_data():
             testX = np.concatenate((test_pos, test_neg))
             testY = np.concatenate((pos_label_test, neg_label_test))
 
+            testXFlip = np.concatenate((testX[:, 128:], testX[:, :128]), axis=1)
+            testX = np.concatenate((testX, testXFlip))
+            testY = np.concatenate((testY, testY))
+
             # trainX_all.append(trainX)
             # trainY_all.append(trainY)
             print(testX.shape)
@@ -295,7 +299,7 @@ def deep():
     testY = tf.one_hot(testY, 2)
 
     model = Sequential()
-    model.add(Dense(100, activation='relu', input_shape=trainX.shape))
+    model.add(Dense(100, activation='relu', input_shape=(0, 256)))
     model.add(Dense(50, activation = 'relu'))
     model.add(Dense(2, activation='softmax'))
 
@@ -314,6 +318,9 @@ def deep():
     print('Test loss:', score['loss'])
     print('Test accuracy:', score['accuracy'])
     print('Test AUC:', score['auc'])
+
+def diff():
+    pass
 
 if __name__ == '__main__':
     # shallow()
