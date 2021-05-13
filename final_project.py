@@ -6,32 +6,48 @@ from PIL import Image, ImageOps
 import sklearn
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression as lr
-from sklearn.utils.testing import ignore_warnings
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
 from tensorflow.keras.models import Sequential
 
+# code needed to get embeddings with RTX GPU
+'''from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
+
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)'''
+
+NEURONS = 70
+NOISE_SD = 0.005
+EPOCHS = 20
+BATCH_SIZE = 1024
+LR = 0.05
+ACTFXN = 'selu'
+
+
 def get_embedding(model, face_pixels):
-	# scale pixel values
-	face_pixels = face_pixels.astype('float32')
-	# standardize pixel values across channels (global)
-	mean, std = face_pixels.mean(), face_pixels.std()
-	face_pixels = (face_pixels - mean) / std
-	# transform face into one sample
-	samples = np.expand_dims(face_pixels, axis=0)
-	# make prediction to get embedding
-	yhat = model.predict(samples)
-	return yhat[0]
+    # scale pixel values
+    face_pixels = face_pixels.astype('float32')
+    # standardize pixel values across channels (global)
+    mean, std = face_pixels.mean(), face_pixels.std()
+    face_pixels = (face_pixels - mean) / std
+    # transform face into one sample
+    samples = np.expand_dims(face_pixels, axis=0)
+    # make prediction to get embedding
+    yhat = model.predict(samples)
+    return yhat[0]
+
 
 # creates positive samples from the data set
 def save_positive_samples(df, i, type, model):
     trainData = []
     counter = 0
-    c=0
+    c = 0
 
     for index, row in df.iterrows():
 
@@ -48,13 +64,13 @@ def save_positive_samples(df, i, type, model):
                     img2 = Image.open(row['p2'] + '/' + file2)
 
                     trainData.append(
-                        np.concatenate((get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))),
-                        get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS)))
-                    )))
-                    counter +=1
-                    c+=1
+                        np.concatenate((get_embedding(model, np.asarray(img1.resize((160, 160), Image.ANTIALIAS))),
+                                        get_embedding(model, np.asarray(img2.resize((160, 160), Image.ANTIALIAS)))
+                                        )))
+                    counter += 1
+                    c += 1
 
-                    if(counter >= 1000):
+                    if counter >= 1000:
                         print('pos {}: {}'.format(type, c))
                         counter = 0
 
@@ -80,16 +96,16 @@ def save_negative_samples(df, i, type, model):
     person2 = []
 
     counter = 0
-    c=0
+    c = 0
 
     for index1, row1 in df.iterrows():
         try:
             imgs_p1 = listdir(row1['p1'])
 
             for index2, row2 in df.iterrows():
-                
+
                 # get all the images in the 2 directories
-                
+
                 imgs_p2 = listdir(row2['p2'])
 
                 # all combinations of the images in either directory
@@ -100,30 +116,30 @@ def save_negative_samples(df, i, type, model):
                         img2 = Image.open(row2['p2'] + '/' + file2)
 
                         # different family ids
-                        if(row1['p1'][11:16] not in row2['p2'][11:16]):
+                        if (row1['p1'][11:16] not in row2['p2'][11:16]):
 
-                            if(len(person1) >= train_pos.shape[0]):
+                            if (len(person1) >= train_pos.shape[0]):
                                 trainData = np.concatenate(
-                                (person1, person2),
-                                axis=1)
+                                    (person1, person2),
+                                    axis=1)
                                 # save all the images in a numpy file
                                 data = np.array(trainData)
                                 np.save("{}_images_neg{}.npy".format(type, i), data)
 
                                 return
 
-                            person1.append(get_embedding(model,np.asarray(img1.resize((160, 160), Image.ANTIALIAS))))
-                            person2.append(get_embedding(model,np.asarray(img2.resize((160, 160), Image.ANTIALIAS))))
-                            counter +=1
-                            c+=1
+                            person1.append(get_embedding(model, np.asarray(img1.resize((160, 160), Image.ANTIALIAS))))
+                            person2.append(get_embedding(model, np.asarray(img2.resize((160, 160), Image.ANTIALIAS))))
+                            counter += 1
+                            c += 1
 
-                            if(counter >= 1000):
+                            if (counter >= 1000):
                                 print('neg {}: {}'.format(type, c))
                                 counter = 0
 
         except FileNotFoundError:
             pass
-        
+
 
 # Turns positive training examples into a large numpy array
 # array is saved in training_images.npy
@@ -147,39 +163,40 @@ def convert_to_numpy():
 
     # random sample of 5% of the data set
     p = .05
-    for i in range(3):
+    for i in range(5):
         b = df.sample(frac=p)
         save_positive_samples(b, i, "training", model)
 
     print('training pos done')
 
-    for i in range(3):
+    for i in range(5):
         b = df.sample(frac=p)
         save_negative_samples(b, i, 'training', model)
 
     print('training neg done')
 
-    for i in range(1):
+    for i in range(2):
         b = df.sample(frac=p)
         save_positive_samples(b, i, "testing", model)
 
     print('testing pos done')
 
-    for i in range(1):
+    for i in range(2):
         b = df.sample(frac=p)
         save_negative_samples(b, i, 'testing', model)
 
     print('testing neg done')
 
+
 # loads all the training data in all the files
 def load_training_data():
-    trainX_all = np.zeros((1,256))
+    trainX_all = np.zeros((1, 256))
     trainY_all = np.array([])
     counter = 0
 
     for dir in listdir('.'):
-        
-        if('training_images_pos' in dir):
+
+        if ('training_images_pos' in dir):
             train_pos = np.load('training_images_pos{}.npy'.format(counter))
             train_neg = np.load('training_images_neg{}.npy'.format(counter))
 
@@ -199,16 +216,19 @@ def load_training_data():
 
             # trainX_all.append(trainX)
             # trainY_all.append(trainY)
-            print(trainX.shape)
-            print(trainY.shape)
+            # print(trainX.shape)
+            # print(trainY.shape)
             trainX_all = np.append(trainX_all, trainX, axis=0)
             trainY_all = np.append(trainY_all, trainY)
 
             counter += 1
 
     trainX_all = trainX_all[1:]
-    print(trainX_all.shape)
-    print(trainY_all.shape)
+    noise = np.random.normal(0, NOISE_SD, trainX_all.shape)
+    trainX_all += noise
+
+    # print(trainX_all.shape)
+    # print(trainY_all.shape)
     idxs = np.random.permutation(trainX_all.shape[0])
 
     trainX_all = trainX_all[idxs]
@@ -216,20 +236,21 @@ def load_training_data():
 
     return trainX_all, trainY_all
 
+
 def load_testing_data():
-    testX_all = np.zeros((1,256))
+    testX_all = np.zeros((1, 256))
     testY_all = np.array([])
     counter = 0
 
     for dir in listdir('.'):
-        
-        if('testing_images_pos' in dir):
+
+        if ('testing_images_pos' in dir):
             test_pos = np.load('testing_images_pos{}.npy'.format(counter))
             test_neg = np.load('testing_images_neg{}.npy'.format(counter))
-            
+
             # test_pos = preprocessing.minmax_scale(test_pos)
             # test_neg = preprocessing.minmax_scale(test_neg)
-            
+
             pos_label_test = np.ones(test_pos.shape[0])
             neg_label_test = np.zeros(test_neg.shape[0])
 
@@ -242,22 +263,23 @@ def load_testing_data():
 
             # trainX_all.append(trainX)
             # trainY_all.append(trainY)
-            print(testX.shape)
-            print(testY.shape)
+            # print(testX.shape)
+            # print(testY.shape)
             testX_all = np.append(testX_all, testX, axis=0)
             testY_all = np.append(testY_all, testY)
 
             counter += 1
 
     testX_all = testX_all[1:]
-    print(testX_all.shape)
-    print(testY_all.shape)
+    # print(testX_all.shape)
+    # print(testY_all.shape)
     idxs = np.random.permutation(testX_all.shape[0])
 
     testX_all = testX_all[idxs]
     testY_all = testY_all[idxs]
 
     return testX_all, testY_all
+
 
 def shallow():
     if (not path.exists('training_images_pos0.npy') and
@@ -276,7 +298,7 @@ def shallow():
     testX = preprocessing.minmax_scale(testX)
 
     clf = lr().fit(trainX, trainY)
-    
+
     print('CE Loss: ', sklearn.metrics.log_loss(testY, clf.predict_proba(testX), eps=1e-15))
     print('Accuracy: ', clf.score(testX, testY))
 
@@ -284,6 +306,7 @@ def shallow():
 
     # plt.imshow(train_pos[0])
     # plt.show()
+
 
 def deep():
     if (not path.exists('training_images_pos0.npy') and
@@ -299,29 +322,45 @@ def deep():
     testY = tf.one_hot(testY, 2)
 
     model = Sequential()
-    model.add(Dense(100, activation='relu', input_shape=(0, 256)))
-    model.add(Dense(50, activation = 'relu'))
+    model.add(Dense(NEURONS, activation=ACTFXN, input_shape=trainX[0].shape))
+    model.add(Dropout(0.2))
+    model.add(Dense(NEURONS, activation=ACTFXN))
     model.add(Dense(2, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
-                optimizer=keras.optimizers.Adam(),
-                metrics=['accuracy', 'AUC'])
+                  optimizer=keras.optimizers.Adam(learning_rate=0.05, beta_1=0.95),
+                  metrics=['accuracy', 'AUC'])
 
     # train model
     model.fit(trainX, trainY,
-    batch_size=128,
-    epochs=10,
-    verbose=1,
-    validation_data=(testX, testY))
+              batch_size=BATCH_SIZE,
+              epochs=EPOCHS,
+              verbose=1,
 
-    score = model.evaluate(testX, testY, verbose=0, return_dict=True)
-    print('Test loss:', score['loss'])
-    print('Test accuracy:', score['accuracy'])
-    print('Test AUC:', score['auc'])
+              validation_data=(testX, testY))
+
+    score = model.evaluate(testX, testY, verbose=1, return_dict=True)
+    # print('Test loss:', score['loss'])
+    # print('Test accuracy:', score['accuracy'])
+    # print('Test AUC:', score['auc'])
+    return score
+
 
 def diff():
     pass
 
+
 if __name__ == '__main__':
-    # shallow()
+    #shallow()
+    '''best = [0, 0]
+    bestParams = {}
+    for lr in [0.001, 0.005, 0.01, 0.05]:
+                LR = lr
+                score = deep()
+                if score['auc'] > best[0] or (score['auc'] == best[0] and score['accuracy'] > best[1]):
+                    best[0] = score['auc']
+                    best[1] = score['accuracy']
+                    bestParams["learn"] = lr
+                    print("Nice!")
+    print("Best: ", bestParams.values())'''
     deep()
