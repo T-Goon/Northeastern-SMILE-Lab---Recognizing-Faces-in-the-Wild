@@ -22,11 +22,11 @@ config = ConfigProto()
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)'''
 
-NEURONS = 70
-NOISE_SD = 0.005
-EPOCHS = 20
-BATCH_SIZE = 1024
-LR = 0.05
+NEURONS = 15
+NOISE_SD = 0.5
+EPOCHS = 10
+BATCH_SIZE = 64
+LR = 0.0001
 ACTFXN = 'selu'
 
 
@@ -232,7 +232,7 @@ def load_training_data():
     idxs = np.random.permutation(trainX_all.shape[0])
 
     trainX_all = trainX_all[idxs]
-    trainX_all = trainX_all[idxs]
+    trainY_all = trainY_all[idxs]
 
     return trainX_all, trainY_all
 
@@ -328,14 +328,14 @@ def deep():
     model.add(Dense(2, activation='softmax'))
 
     model.compile(loss=keras.losses.categorical_crossentropy,
-                  optimizer=keras.optimizers.Adam(learning_rate=0.05, beta_1=0.95),
+                  optimizer=keras.optimizers.Adam(learning_rate=LR),
                   metrics=['accuracy', 'AUC'])
 
     # train model
     model.fit(trainX, trainY,
               batch_size=BATCH_SIZE,
               epochs=EPOCHS,
-              verbose=1,
+              verbose=0,
 
               validation_data=(testX, testY))
 
@@ -351,16 +351,24 @@ def diff():
 
 
 if __name__ == '__main__':
-    #shallow()
+    shallow()
+    deep()
+
     '''best = [0, 0]
     bestParams = {}
-    for lr in [0.001, 0.005, 0.01, 0.05]:
-                LR = lr
+    for neuron in [15, 20]:
+        for batch in [64, 32]:
+            for act in ['selu', 'relu', 'tanh']:
+                NEURONS = neuron
+                ACTFXN = act
+                BATCH_SIZE = batch
+                print(neuron, batch, act, ": ")
                 score = deep()
                 if score['auc'] > best[0] or (score['auc'] == best[0] and score['accuracy'] > best[1]):
                     best[0] = score['auc']
                     best[1] = score['accuracy']
-                    bestParams["learn"] = lr
+                    bestParams["neuron"] = neuron
+                    bestParams["batch"] = batch
+                    bestParams["actfx"] = act
                     print("Nice!")
     print("Best: ", bestParams.values())'''
-    deep()
