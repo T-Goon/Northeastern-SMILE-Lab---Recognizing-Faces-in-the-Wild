@@ -33,7 +33,9 @@ After a grid search of hyperparameter combinations these ones turned out to be t
 - Activation Function: Scaled Exponential Linear
 - Standard Deviation of Random Noise: .5
 
-![image](https://user-images.githubusercontent.com/32044950/120908291-ad1fad00-c636-11eb-9e28-3755dc65fa58.png)
+| Cross Entropy Loss  | Accuracy | Area Under ROC Curve |
+| ------------------- | -------- | -------------------- |
+|          .83        | .61      |         .70          |
 
 A detailed report on the development process and results can be found in "final_project_jjlaforest_twgoon_omthode.pdf".
 
