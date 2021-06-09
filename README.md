@@ -9,6 +9,8 @@ Details on the assignment can be found in "final_project.pdf".
 
 We took 224 x 224 RBG images of faces and created 128 dimension face emeddings (https://machinelearningmastery.com/how-to-develop-a-face-recognition-system-using-facenet-in-keras-and-an-svm-classifier/) with a pretrained facenet model (https://github.com/nyoki-mtl/keras-facenet). 
 
+The input to our machine learning models predicted based on two emeddings as input. Therefore, we had to append these two embeddings before feeding them into the models. To promote symmetrical weights within our models if we append embedding A onto embedding B we also made sure to include a sample in the training data where embedding B was appended onto embedding A.
+
 An amount of random noise was also added to the face embeddings to promote a more generalized neural network model.
 
 ## Model
